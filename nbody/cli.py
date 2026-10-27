@@ -19,6 +19,13 @@ def _positive_int(text):
     return number
 
 
+def _gif_fps(text):
+    number = _positive_int(text)
+    if number > 50:
+        raise argparse.ArgumentTypeError("Частота GIF должна быть от 1 до 50 кадров в секунду.")
+    return number
+
+
 def _positive_float(text):
     number = float(text)
     if not np.isfinite(number) or number <= 0:
@@ -41,7 +48,7 @@ def _physical_options(parser):
 def _simulation_options(parser):
     parser.add_argument("--n", type=_positive_int, default=256, help="Количество частиц")
     parser.add_argument("--method", choices=["direct", "barnes-hut", "both"], default="both")
-    parser.add_argument("--scenario", choices=["disk", "clusters", "binary"], default="disk")
+    parser.add_argument("--scenario", choices=["disk", "clusters", "binary", "galaxies"], default="disk")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--steps", type=_positive_int, default=300)
     parser.add_argument("--dt", type=_positive_float, default=0.003)
@@ -49,6 +56,10 @@ def _simulation_options(parser):
     parser.add_argument("--sample-every", type=_positive_int, default=5, help="Шаг сохранения снимков и диагностик")
     parser.add_argument("--input", type=Path, help="NPZ с positions(N,2), masses(N), velocities(N,2); заменяет генератор")
     parser.add_argument("--animate", action="store_true", help="Дополнительно создать animation.gif")
+    parser.add_argument("--theme", choices=["cosmic", "paper"], default="cosmic",
+                        help="Оформление: светящиеся частицы или светлые научные графики")
+    parser.add_argument("--fps", type=_gif_fps, default=24,
+                        help="Кадров в секунду в GIF: 1–50 (по умолчанию 24)")
     _physical_options(parser)
 
 
@@ -72,6 +83,9 @@ def build_parser():
     demo = commands.add_parser("demo", help="Все эксперименты с готовыми параметрами; действие по умолчанию")
     demo.add_argument("--out", type=Path, default=Path("results/demo"))
     demo.add_argument("--animate", action="store_true")
+    demo.add_argument("--theme", choices=["cosmic", "paper"], default="cosmic")
+    demo.add_argument("--fps", type=_gif_fps, default=24,
+                      help="Кадров в секунду в GIF: 1–50 (по умолчанию 24)")
     return parser
 
 
@@ -97,10 +111,13 @@ def run_simulation(args):
                           theta=args.theta, softening=args.softening, gravitational_constant=args.g,
                           sample_every=args.sample_every)
         results.append(result)
-    summary = save_simulations(results, args.out, animate=args.animate)
+    visual_scenario = "custom" if args.input else args.scenario
+    summary = save_simulations(results, args.out, animate=args.animate,
+                               theme=args.theme, fps=args.fps, scenario=visual_scenario)
     config = {key: (str(value) if isinstance(value, Path) else value)
               for key, value in vars(args).items()}
     config["backend"] = BACKEND
+    config["visual_scenario"] = visual_scenario
     (args.out / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
     for method in methods:
         row = summary[method]
@@ -118,7 +135,7 @@ def run_validation(out, *, softening=0.03, gravitational_constant=1.0):
     result = simulate(x, masses, v, method="direct", steps=1000, dt=period / 1000,
                       softening=softening, gravitational_constant=gravitational_constant,
                       sample_every=5)
-    summary = save_simulations([result], out)
+    summary = save_simulations([result], out, theme="paper", scenario="binary")
     distance = np.linalg.norm(result["positions"][:, 1] - result["positions"][:, 0], axis=1)
     final_time = 2.0 / omega
     angle = omega * final_time
@@ -172,6 +189,8 @@ def main(argv=None):
             benchmark(args.out / "benchmark")
             sim_args = parser.parse_args(["simulate", "--out", str(args.out / "simulation")])
             sim_args.animate = args.animate
+            sim_args.theme = args.theme
+            sim_args.fps = args.fps
             run_simulation(sim_args)
             if not run_validation(args.out / "validation"):
                 return 1

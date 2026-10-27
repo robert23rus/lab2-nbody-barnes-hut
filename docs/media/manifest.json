@@ -1,0 +1,85 @@
+{
+  "description": "Реальные координаты N-body-модели; свечение и следы добавлены при отрисовке.",
+  "model": "Ньютоновская гравитация в плоскости со смягчением Пламмера.",
+  "colours": "Для galaxies и clusters цвет сохраняет принадлежность к исходной группе.",
+  "software": {
+    "numpy": "2.3.5",
+    "numba": "0.63.1",
+    "Pillow": "13.0.0"
+  },
+  "media": [
+    {
+      "file": "comparison.gif",
+      "poster": "comparison-poster.png",
+      "frames": 101,
+      "size": [
+        1000,
+        620
+      ],
+      "duration_seconds": 4.21,
+      "bytes": 3497583,
+      "loop": 0,
+      "sha256": "c444ab9b921b1448cfe38ed111354229186f308c4f6083425df4619ecb6f6259",
+      "parameters": {
+        "scenario": "clusters",
+        "n": 512,
+        "seed": 42,
+        "methods": [
+          "direct",
+          "barnes-hut"
+        ],
+        "steps": 400,
+        "dt": 0.005,
+        "sample_every": 4,
+        "theta": 0.5,
+        "softening": 0.03,
+        "gravitational_constant": 1.0
+      },
+      "model_time_final": 2.0,
+      "saved_simulation_frames": 101,
+      "requested_fps": 24,
+      "theme": "cosmic",
+      "sources_sha256": {
+        "nbody/forces.py": "1adeff3b3b0d28f6e01e563f51c315bbe7337f81a48a79c10eeb69ea092be54c",
+        "nbody/simulation.py": "22509a9c00115ebd2d60ff3bcac04ba462b47d7b6902dbddc695f3267375e4ce"
+      },
+      "rendering_source_sha256": "20e3c8e6ffb631355359a083723cd7dbb321abda9c0dc57e19e8913f08164704"
+    },
+    {
+      "file": "galaxies.gif",
+      "poster": "galaxies-poster.png",
+      "frames": 161,
+      "size": [
+        1000,
+        620
+      ],
+      "duration_seconds": 6.71,
+      "bytes": 8242817,
+      "loop": 0,
+      "sha256": "4fe516a1f37da515dfcc97f2c8f04a36cbd9c04c38f739ce5e705a9e7f9fa11a",
+      "parameters": {
+        "scenario": "galaxies",
+        "n": 4096,
+        "seed": 42,
+        "methods": [
+          "barnes-hut"
+        ],
+        "steps": 800,
+        "dt": 0.0075,
+        "sample_every": 5,
+        "theta": 0.6,
+        "softening": 0.03,
+        "gravitational_constant": 1.0
+      },
+      "model_time_final": 6.0,
+      "saved_simulation_frames": 161,
+      "requested_fps": 24,
+      "theme": "cosmic",
+      "sources_sha256": {
+        "nbody/forces.py": "1adeff3b3b0d28f6e01e563f51c315bbe7337f81a48a79c10eeb69ea092be54c",
+        "nbody/simulation.py": "22509a9c00115ebd2d60ff3bcac04ba462b47d7b6902dbddc695f3267375e4ce"
+      },
+      "rendering_source_sha256": "20e3c8e6ffb631355359a083723cd7dbb321abda9c0dc57e19e8913f08164704"
+    }
+  ]
+}

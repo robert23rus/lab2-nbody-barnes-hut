@@ -45,6 +45,66 @@ def invariants(positions, masses, velocities, *, softening=0.03,
             "angular_momentum": float(angular)}
 
 
+def _galaxy_initial_conditions(n, rng, softening, gravitational_constant):
+    """Два самогравитирующих диска на встречной орбите с прицельным параметром.
+
+    Это учебные плоские звёздные диски без тёмного гало и внешнего поля.
+    Поверхностная плотность каждого диска пропорциональна exp(-r/Rd),
+    радиус ограничен 4 Rd. Тангенциальный профиль начальных скоростей
+    приближённый; нормировка 2T/|U|=0.9 не гарантирует равновесия диска.
+    При нечётном N группы отличаются одной частицей, массы всех тел равны.
+    """
+    if n < 2:
+        raise ValueError("Для сценария galaxies необходимо n>=2.")
+    masses = np.full(n, 1.0 / n)
+    positions = np.empty((n, 2))
+    velocities = np.empty((n, 2))
+    scale_radius = 0.18
+    radius_limit = 4.0 * scale_radius
+    normalization = 1.0 - 5.0 * np.exp(-4.0)
+    group_slices = (slice(0, n // 2), slice(n // 2, n))
+    centers = ((-1.05, -0.18), (1.05, 0.18))
+    bulk_velocities = ((0.22, -0.10), (-0.22, 0.10))
+    for group, center, bulk in zip(group_slices, centers, bulk_velocities):
+        count = group.stop - group.start
+        # p(r) ∝ r exp(-r/Rd): Gamma(k=2), отбрасываем внешний хвост.
+        radii = rng.gamma(2.0, scale_radius, count)
+        outside = radii > radius_limit
+        while np.any(outside):
+            radii[outside] = rng.gamma(2.0, scale_radius, np.count_nonzero(outside))
+            outside = radii > radius_limit
+        angles = rng.uniform(0, 2 * np.pi, count)
+        local_x = np.column_stack((radii * np.cos(angles), radii * np.sin(angles)))
+        local_x -= np.mean(local_x, axis=0)
+        radius = np.linalg.norm(local_x, axis=1)
+        enclosed_fraction = np.clip(
+            (1.0 - (1.0 + radius / scale_radius) * np.exp(-radius / scale_radius))
+            / normalization, 0.0, 1.0
+        )
+        enclosed_mass = np.sum(masses[group]) * enclosed_fraction
+        denominator = (radius**2 + softening**2)**1.5
+        # r=0 имеет нулевую тангенциальную скорость даже при epsilon=0.
+        speed_squared = np.divide(
+            gravitational_constant * enclosed_mass * radius**2, denominator,
+            out=np.zeros(count), where=denominator > 0,
+        )
+        tangent = np.column_stack((-local_x[:, 1], local_x[:, 0]))
+        tangent = np.divide(tangent, radius[:, None], out=np.zeros_like(tangent),
+                            where=radius[:, None] > 0)
+        local_v = tangent * np.sqrt(speed_squared)[:, None]
+        local_v += rng.normal(0, 0.02 * np.sqrt(gravitational_constant), (count, 2))
+        local_v -= np.mean(local_v, axis=0)
+        diag = invariants(local_x, masses[group], local_v, softening=softening,
+                          gravitational_constant=gravitational_constant)
+        if diag["kinetic"] > 0:
+            local_v *= np.sqrt(0.9 * abs(diag["potential"]) / (2 * diag["kinetic"]))
+        positions[group] = local_x + center
+        velocities[group] = local_v + np.sqrt(gravitational_constant) * np.asarray(bulk)
+    positions -= np.average(positions, axis=0, weights=masses)
+    velocities -= np.average(velocities, axis=0, weights=masses)
+    return positions, masses, velocities
+
+
 def initial_conditions(n, seed=42, scenario="disk", softening=0.03,
                        gravitational_constant=1.0):
     """Безразмерные условия: суммарная масса 1; размер порядка 1.
@@ -52,6 +112,7 @@ def initial_conditions(n, seed=42, scenario="disk", softening=0.03,
     disk: равномерный по площади диск с вращением и малым шумом скорости.
     clusters: два гауссовых скопления со встречным движением.
     binary: точная круговая орбита двух равных масс для данной epsilon.
+    galaxies: два вращающихся экспоненциальных диска на встречной орбите.
     В первых двух случаях скорости масштабируются до 2T/|U| = 1.
     Это начальная вириализация, а не доказательство равновесия системы.
     """
@@ -61,8 +122,12 @@ def initial_conditions(n, seed=42, scenario="disk", softening=0.03,
         raise ValueError("softening должно быть конечным и неотрицательным.")
     if not np.isfinite(gravitational_constant) or gravitational_constant <= 0:
         raise ValueError("G должно быть конечным положительным числом.")
-    if scenario not in {"disk", "clusters", "binary"}:
+    if scenario not in {"disk", "clusters", "binary", "galaxies"}:
         raise ValueError("Неизвестный сценарий начальных условий.")
+    if scenario == "galaxies":
+        return _galaxy_initial_conditions(
+            n, np.random.default_rng(seed), softening, gravitational_constant
+        )
     masses = np.full(n, 1.0 / n)
     if scenario == "binary":
         if n != 2:
